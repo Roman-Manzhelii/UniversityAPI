@@ -1,0 +1,114 @@
+PRAGMA foreign_keys = ON;
+
+DROP TABLE IF EXISTS Enrollments;
+DROP TABLE IF EXISTS Students;
+DROP TABLE IF EXISTS Courses;
+DROP TABLE IF EXISTS Departments;
+
+CREATE TABLE Departments (
+    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    Name      TEXT NOT NULL UNIQUE,
+    Building  TEXT NOT NULL,
+    Budget    REAL NOT NULL CHECK (Budget > 0)
+);
+
+CREATE TABLE Courses (
+    Id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    Code         TEXT NOT NULL UNIQUE,
+    Title        TEXT NOT NULL,
+    Credits      INTEGER NOT NULL CHECK (Credits > 0),
+    DepartmentId INTEGER NOT NULL,
+    FOREIGN KEY (DepartmentId) REFERENCES Departments(Id) ON DELETE CASCADE
+);
+
+CREATE TABLE Students (
+    Id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    StudentNumber TEXT NOT NULL UNIQUE,
+    Name          TEXT NOT NULL,
+    TotalCredits  INTEGER NOT NULL CHECK (TotalCredits >= 0),
+    DepartmentId  INTEGER,
+    FOREIGN KEY (DepartmentId) REFERENCES Departments(Id) ON DELETE SET NULL
+);
+
+-- many-to-many: Student <-> Course
+CREATE TABLE Enrollments (
+    StudentId INTEGER NOT NULL,
+    CourseId  INTEGER NOT NULL,
+    Grade     TEXT NULL,
+    PRIMARY KEY (StudentId, CourseId),
+    FOREIGN KEY (StudentId) REFERENCES Students(Id) ON DELETE CASCADE,
+    FOREIGN KEY (CourseId)  REFERENCES Courses(Id)  ON DELETE CASCADE
+);
+
+-- ===== seed data =====
+
+INSERT INTO Departments (Id, Name, Building, Budget) VALUES
+(1, 'Biology',    'Watson',  90000),
+(2, 'Comp. Sci.', 'Taylor', 100000),
+(3, 'Elec. Eng.', 'Taylor',  85000),
+(4, 'Finance',    'Painter', 120000),
+(5, 'History',    'Painter', 50000),
+(6, 'Music',      'Packard', 80000),
+(7, 'Physics',    'Watson',  70000);
+
+INSERT INTO Courses (Id, Code, Title, Credits, DepartmentId) VALUES
+(1,  'BIO-101', 'Intro. to Biology',             4, 1),
+(2,  'BIO-301', 'Genetics',                      4, 1),
+(3,  'BIO-399', 'Computational Biology',         3, 1),
+(4,  'CS-101',  'Intro. to Computer Science',    4, 2),
+(5,  'CS-190',  'Game Design',                   4, 2),
+(6,  'CS-315',  'Robotics',                      3, 2),
+(7,  'CS-319',  'Image Processing',              3, 2),
+(8,  'CS-347',  'Database System Concepts',      3, 2),
+(9,  'EE-181',  'Intro. to Digital Systems',     3, 3),
+(10, 'FIN-201', 'Investment Banking',            3, 4),
+(11, 'HIS-351', 'World History',                 3, 5),
+(12, 'MU-199',  'Music Video Production',        3, 6),
+(13, 'PHY-101', 'Physical Principles',           4, 7);
+
+INSERT INTO Students (Id, StudentNumber, Name, TotalCredits, DepartmentId) VALUES
+(1,  '00128', 'Zhang',    102, 2),
+(2,  '12345', 'Shankar',   32, 2),
+(3,  '19991', 'Brandt',    80, 5),
+(4,  '23121', 'Chavez',   110, 4),
+(5,  '44553', 'Peltier',   56, 7),
+(6,  '45678', 'Levy',      46, 7),
+(7,  '54321', 'Williams',  54, 2),
+(8,  '55739', 'Sanchez',   38, 6),
+(9,  '70557', 'Snow',       0, 7),
+(10, '76543', 'Brown',     58, 2),
+(11, '76653', 'Aoi',       60, 3),
+(12, '98765', 'Bourikas',  98, 3),
+(13, '98988', 'Tanaka',   120, 1);
+
+INSERT INTO Enrollments (StudentId, CourseId, Grade) VALUES
+(1,  4,  'A'),
+(1,  8,  'A-'),
+
+(2,  4,  'C'),
+(2,  5,  'A'),
+(2,  6,  'A'),
+(2,  8,  'A'),
+
+(3, 11, 'B'),
+(4, 10, 'C+'),
+(5, 13, 'B-'),
+
+(6,  4, 'B+'),
+(6,  7, 'B'),
+
+(7,  4, 'A-'),
+(7,  5, 'B+'),
+
+(8, 12, 'A-'),
+
+(10, 4, 'A'),
+(10, 7, 'A'),
+
+(11, 9, 'C'),
+
+(12, 4, 'C-'),
+(12, 6, 'B'),
+
+(13, 1, 'A'),
+(13, 2, NULL);
