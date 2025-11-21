@@ -21,4 +21,15 @@ public class StudentsController : ControllerBase
     {
         return Ok(new { message = "Students API is working" });
     }
+
+    // GET: api/students
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<Student>>> GetStudents()
+    {
+        var students = await _context.Students
+            .AsNoTracking() // For read-only operation to make request lighter for CPU, RAM
+            .ToListAsync();
+
+        return Ok(students);
+    }
 }
