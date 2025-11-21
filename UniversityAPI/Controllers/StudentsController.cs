@@ -32,4 +32,21 @@ public class StudentsController : ControllerBase
 
         return Ok(students);
     }
+
+    // GET: api/students/{id}
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<Student>> GetStudent(int id)
+    {
+        var student = await _context.Students
+            .AsNoTracking()
+            .Include(s => s.Department)
+            .SingleOrDefaultAsync(s => s.Id == id);
+
+        if (student == null)
+        {
+            return NotFound();
+        }
+
+        return Ok(student);
+    }
 }
