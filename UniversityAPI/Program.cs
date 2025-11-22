@@ -7,6 +7,19 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+const string AllowAllCorsPolicy = "AllowAllCorsPolicy";
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(AllowAllCorsPolicy, policy =>
+    {
+        policy
+            .AllowAnyOrigin()
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 // Add services to the container.
 
 builder.Services.AddControllers()
@@ -53,6 +66,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors(AllowAllCorsPolicy);
 
 app.UseAuthentication();
 app.UseAuthorization();
