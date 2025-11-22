@@ -15,13 +15,6 @@ public class StudentsController : ControllerBase
         _context = context;
     }
 
-    // GET: api/students/ping
-    [HttpGet("ping")]
-    public IActionResult Ping()
-    {
-        return Ok(new { message = "Students API is working" });
-    }
-
     // GET: api/students
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Student>>> GetStudents()

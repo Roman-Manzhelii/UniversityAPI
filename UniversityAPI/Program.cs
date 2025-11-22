@@ -19,7 +19,7 @@ builder.Services.AddControllers()
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        var key = "ca2_university_api_key_2025";
+        var key = "soa_ca2_university_api_key_2025_software_development";
         var keyBytes = Encoding.UTF8.GetBytes(key);
 
         options.TokenValidationParameters = new TokenValidationParameters

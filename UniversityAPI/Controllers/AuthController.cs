@@ -37,7 +37,7 @@ public class AuthController : ControllerBase
         }
     };
 
-    private const string JwtKey = "ca2_university_api_key_2025";
+    private const string JwtKey = "soa_ca2_university_api_key_2025_software_development";
     private const string JwtIssuer = "UniversityAPI";
 
     // POST: api/auth/login
