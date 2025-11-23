@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using UniversityAPI.Models;
+using UniversityAPI.Services;
 
 namespace UniversityAPI.Controllers;
 
@@ -9,11 +9,11 @@ namespace UniversityAPI.Controllers;
 [Route("api/[controller]")]
 public class DepartmentsController : ControllerBase
 {
-    private readonly UniversityContext _context;
+    private readonly IDepartmentService _departments;
 
-    public DepartmentsController(UniversityContext context)
+    public DepartmentsController(IDepartmentService departments)
     {
-        _context = context;
+        _departments = departments;
     }
 
     // GET: api/departments
@@ -21,15 +21,7 @@ public class DepartmentsController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<IEnumerable<DepartmentDto>>> GetDepartments()
     {
-        var departments = await _context.Departments
-            .AsNoTracking()
-            .Select(d => new DepartmentDto
-            {
-                Id = d.Id,
-                Name = d.Name
-            })
-            .ToListAsync();
-
+        var departments = await _departments.GetDepartmentsAsync();
         return Ok(departments);
     }
 
@@ -38,16 +30,7 @@ public class DepartmentsController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<DepartmentDto>> GetDepartment(int id)
     {
-        var department = await _context.Departments
-            .AsNoTracking()
-            .Where(d => d.Id == id)
-            .Select(d => new DepartmentDto
-            {
-                Id = d.Id,
-                Name = d.Name
-            })
-            .SingleOrDefaultAsync();
-
+        var department = await _departments.GetDepartmentAsync(id);
         if (department == null)
         {
             return NotFound();

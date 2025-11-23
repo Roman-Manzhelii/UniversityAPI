@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using UniversityAPI.Models;
+using UniversityAPI.Services;
 
 namespace UniversityAPI.Controllers;
 
@@ -9,11 +9,11 @@ namespace UniversityAPI.Controllers;
 [Route("api/[controller]")]
 public class CoursesController : ControllerBase
 {
-    private readonly UniversityContext _context;
+    private readonly ICourseService _courses;
 
-    public CoursesController(UniversityContext context)
+    public CoursesController(ICourseService courses)
     {
-        _context = context;
+        _courses = courses;
     }
 
     // GET: api/courses
@@ -21,20 +21,7 @@ public class CoursesController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<IEnumerable<CourseSummaryDto>>> GetCourses()
     {
-        var courses = await _context.Courses
-            .AsNoTracking() // For read-only operation to make request lighter for CPU, RAM
-            .Include(c => c.Department)
-            .Select(c => new CourseSummaryDto
-            {
-                Id = c.Id,
-                Code = c.Code,
-                Title = c.Title,
-                Credits = c.Credits,
-                DepartmentId = c.DepartmentId,
-                DepartmentName = c.Department.Name
-            })
-            .ToListAsync();
-
+        var courses = await _courses.GetCoursesAsync();
         return Ok(courses);
     }
 
@@ -43,22 +30,7 @@ public class CoursesController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<CourseDetailsDto>> GetCourse(int id)
     {
-        var course = await _context.Courses
-            .AsNoTracking()
-            .Where(c => c.Id == id)
-            .Select(c => new CourseDetailsDto
-            {
-                Id = c.Id,
-                Code = c.Code,
-                Title = c.Title,
-                Credits = c.Credits,
-                Department = new DepartmentDto
-                {
-                    Id = c.Department.Id,
-                    Name = c.Department.Name
-                }
-            })
-            .SingleOrDefaultAsync();
+        var course = await _courses.GetCourseAsync(id);
 
         if (course == null)
         {
@@ -78,46 +50,27 @@ public class CoursesController : ControllerBase
             return BadRequest();
         }
 
-        var departmentExists = await _context.Departments.AnyAsync(d => d.Id == dto.DepartmentId);
-        if (!departmentExists)
+        try
+        {
+            var created = await _courses.CreateCourseAsync(dto);
+            return CreatedAtAction(nameof(GetCourse), new { id = created.Id }, created);
+        }
+        catch (ArgumentNullException)
+        {
+            return BadRequest();
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "Credits must be greater than 0")
+        {
+            return BadRequest("Credits must be greater than 0");
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "Department not found")
         {
             return BadRequest("Department not found");
         }
-
-        var course = new Course
-        {
-            Code = dto.Code,
-            Title = dto.Title,
-            Credits = dto.Credits,
-            DepartmentId = dto.DepartmentId
-        };
-
-        _context.Courses.Add(course);
-        await _context.SaveChangesAsync();
-
-        var details = await _context.Courses
-            .AsNoTracking()
-            .Where(c => c.Id == course.Id)
-            .Select(c => new CourseDetailsDto
-            {
-                Id = c.Id,
-                Code = c.Code,
-                Title = c.Title,
-                Credits = c.Credits,
-                Department = new DepartmentDto
-                {
-                    Id = c.Department.Id,
-                    Name = c.Department.Name
-                }
-            })
-            .SingleOrDefaultAsync();
-
-        if (details == null)
+        catch (InvalidOperationException)
         {
             return StatusCode(500);
         }
-
-        return CreatedAtAction(nameof(GetCourse), new { id = details.Id }, details);
     }
 
     // PUT: api/courses/{id}
@@ -130,48 +83,33 @@ public class CoursesController : ControllerBase
             return BadRequest();
         }
 
-        var course = await _context.Courses.FindAsync(id);
-        if (course == null)
+        try
         {
-            return NotFound();
-        }
+            var updated = await _courses.UpdateCourseAsync(id, dto);
 
-        var departmentExists = await _context.Departments.AnyAsync(d => d.Id == dto.DepartmentId);
-        if (!departmentExists)
+            if (updated == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(updated);
+        }
+        catch (ArgumentNullException)
+        {
+            return BadRequest();
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "Credits must be greater than 0")
+        {
+            return BadRequest("Credits must be greater than 0");
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "Department not found")
         {
             return BadRequest("Department not found");
         }
-
-        course.Code = dto.Code;
-        course.Title = dto.Title;
-        course.Credits = dto.Credits;
-        course.DepartmentId = dto.DepartmentId;
-
-        await _context.SaveChangesAsync();
-
-        var details = await _context.Courses
-            .AsNoTracking()
-            .Where(c => c.Id == id)
-            .Select(c => new CourseDetailsDto
-            {
-                Id = c.Id,
-                Code = c.Code,
-                Title = c.Title,
-                Credits = c.Credits,
-                Department = new DepartmentDto
-                {
-                    Id = c.Department.Id,
-                    Name = c.Department.Name
-                }
-            })
-            .SingleOrDefaultAsync();
-
-        if (details == null)
+        catch (InvalidOperationException)
         {
             return StatusCode(500);
         }
-
-        return Ok(details);
     }
 
     // DELETE: api/courses/{id}
@@ -179,14 +117,12 @@ public class CoursesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeleteCourse(int id)
     {
-        var course = await _context.Courses.FindAsync(id);
-        if (course == null)
+        var deleted = await _courses.DeleteCourseAsync(id);
+
+        if (!deleted)
         {
             return NotFound();
         }
-
-        _context.Courses.Remove(course);
-        await _context.SaveChangesAsync();
 
         return NoContent();
     }
