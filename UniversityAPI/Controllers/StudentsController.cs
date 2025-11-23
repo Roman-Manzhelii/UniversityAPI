@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using UniversityAPI.Models;
+using UniversityAPI.Services;
 
 namespace UniversityAPI.Controllers;
 
@@ -9,11 +9,11 @@ namespace UniversityAPI.Controllers;
 [Route("api/[controller]")]
 public class StudentsController : ControllerBase
 {
-    private readonly UniversityContext _context;
+    private readonly IStudentService _students;
 
-    public StudentsController(UniversityContext context)
+    public StudentsController(IStudentService students)
     {
-        _context = context;
+        _students = students;
     }
 
     // GET: api/students
@@ -22,20 +22,7 @@ public class StudentsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<IEnumerable<StudentSummaryDto>>> GetStudents()
     {
-        var students = await _context.Students
-            .AsNoTracking() // For read-only operation to make request lighter for CPU, RAM
-            .Include(s => s.Department)
-            .Select(s => new StudentSummaryDto
-            {
-                Id = s.Id,
-                StudentNumber = s.StudentNumber,
-                Name = s.Name,
-                TotalCredits = s.TotalCredits,
-                DepartmentId = s.DepartmentId,
-                DepartmentName = s.Department != null ? s.Department.Name : null
-            })
-            .ToListAsync();
-
+        var students = await _students.GetStudentsAsync();
         return Ok(students);
     }
 
@@ -61,7 +48,6 @@ public class StudentsController : ControllerBase
     }
 
     // POST: api/students
-    // Admin: create a new student
     [HttpPost]
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<StudentDetailsDto>> CreateStudent([FromBody] StudentCreateDto dto)
@@ -71,28 +57,26 @@ public class StudentsController : ControllerBase
             return BadRequest();
         }
 
-        var student = new Student
+        try
         {
-            StudentNumber = dto.StudentNumber,
-            Name = dto.Name,
-            TotalCredits = 0,
-            DepartmentId = dto.DepartmentId
-        };
-
-        _context.Students.Add(student);
-        await _context.SaveChangesAsync();
-
-        var details = await FindStudentDetailsAsync(student.Id);
-        if (details == null)
+            var details = await _students.CreateStudentAsync(dto);
+            return CreatedAtAction(nameof(GetStudent), new { id = details.Id }, details);
+        }
+        catch (ArgumentNullException)
+        {
+            return BadRequest();
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "Department not found")
+        {
+            return BadRequest("Department not found");
+        }
+        catch (InvalidOperationException)
         {
             return StatusCode(500);
         }
-
-        return CreatedAtAction(nameof(GetStudent), new { id = details.Id }, details);
     }
 
     // PUT: api/students/{id}
-    // Admin can update any student,but Student can update only himself
     [HttpPut("{id:int}")]
     [Authorize]
     public async Task<ActionResult<StudentDetailsDto>> UpdateStudent(int id, [FromBody] StudentUpdateDto dto)
@@ -107,24 +91,28 @@ public class StudentsController : ControllerBase
             return Forbid();
         }
 
-        var student = await _context.Students.FindAsync(id);
-        if (student == null)
+        try
         {
-            return NotFound();
+            var details = await _students.UpdateStudentAsync(id, dto);
+            if (details == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(details);
         }
-
-        student.Name = dto.Name;
-        student.DepartmentId = dto.DepartmentId;
-
-        await _context.SaveChangesAsync();
-
-        var details = await FindStudentDetailsAsync(id);
-        if (details == null)
+        catch (ArgumentNullException)
+        {
+            return BadRequest();
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "Department not found")
+        {
+            return BadRequest("Department not found");
+        }
+        catch (InvalidOperationException)
         {
             return StatusCode(500);
         }
-
-        return Ok(details);
     }
 
     // GET: api/students/{id}/courses
@@ -138,18 +126,7 @@ public class StudentsController : ControllerBase
             return Forbid();
         }
 
-        var enrollments = await _context.Enrollments
-            .AsNoTracking()
-            .Where(e => e.StudentId == id)
-            .Select(e => new StudentEnrollmentDto
-            {
-                CourseId = e.CourseId,
-                CourseCode = e.Course.Code,
-                CourseTitle = e.Course.Title,
-                Credits = e.Course.Credits,
-                Grade = e.Grade
-            })
-            .ToListAsync();
+        var enrollments = await _students.GetEnrollmentsAsync(id);
 
         return Ok(enrollments);
     }
@@ -172,48 +149,32 @@ public class StudentsController : ControllerBase
             return Forbid();
         }
 
-        var studentExists = await _context.Students.AnyAsync(s => s.Id == id);
-        if (!studentExists)
+        try
         {
-            return NotFound();
-        }
+            var result = await _students.EnrollAsync(id, dto);
+            if (result == null)
+            {
+                return NotFound();
+            }
 
-        var courseExists = await _context.Courses.AnyAsync(c => c.Id == dto.CourseId);
-        if (!courseExists)
+            return Ok(result);
+        }
+        catch (ArgumentNullException)
+        {
+            return BadRequest();
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "Course not found")
         {
             return BadRequest("Course not found");
         }
-
-        var existingEnrollment = await _context.Enrollments.FindAsync(id, dto.CourseId);
-        if (existingEnrollment != null)
+        catch (InvalidOperationException ex) when (ex.Message == "Student is already enrolled in this course")
         {
             return Conflict("Student is already enrolled in this course");
         }
-
-        var enrollment = new Enrollment
+        catch (InvalidOperationException)
         {
-            StudentId = id,
-            CourseId = dto.CourseId,
-            Grade = null
-        };
-
-        _context.Enrollments.Add(enrollment);
-        await _context.SaveChangesAsync();
-
-        var result = await _context.Enrollments
-            .AsNoTracking()
-            .Where(e => e.StudentId == id && e.CourseId == dto.CourseId)
-            .Select(e => new StudentEnrollmentDto
-            {
-                CourseId = e.CourseId,
-                CourseCode = e.Course.Code,
-                CourseTitle = e.Course.Title,
-                Credits = e.Course.Credits,
-                Grade = e.Grade
-            })
-            .SingleAsync();
-
-        return Ok(result);
+            return StatusCode(500);
+        }
     }
 
     // PUT: api/students/{id}/courses/{courseId}
@@ -230,30 +191,24 @@ public class StudentsController : ControllerBase
             return BadRequest();
         }
 
-        var enrollment = await _context.Enrollments.FindAsync(id, courseId);
-        if (enrollment == null)
+        try
         {
-            return NotFound();
-        }
-
-        enrollment.Grade = dto.Grade;
-
-        await _context.SaveChangesAsync();
-
-        var result = await _context.Enrollments
-            .AsNoTracking()
-            .Where(e => e.StudentId == id && e.CourseId == courseId)
-            .Select(e => new StudentEnrollmentDto
+            var result = await _students.UpdateEnrollmentAsync(id, courseId, dto);
+            if (result == null)
             {
-                CourseId = e.CourseId,
-                CourseCode = e.Course.Code,
-                CourseTitle = e.Course.Title,
-                Credits = e.Course.Credits,
-                Grade = e.Grade
-            })
-            .SingleAsync();
+                return NotFound();
+            }
 
-        return Ok(result);
+            return Ok(result);
+        }
+        catch (ArgumentNullException)
+        {
+            return BadRequest();
+        }
+        catch (InvalidOperationException)
+        {
+            return StatusCode(500);
+        }
     }
 
     // DELETE: api/students/{id}/courses/{courseId}
@@ -267,14 +222,11 @@ public class StudentsController : ControllerBase
             return Forbid();
         }
 
-        var enrollment = await _context.Enrollments.FindAsync(id, courseId);
-        if (enrollment == null)
+        var deleted = await _students.DeleteEnrollmentAsync(id, courseId);
+        if (!deleted)
         {
             return NotFound();
         }
-
-        _context.Enrollments.Remove(enrollment);
-        await _context.SaveChangesAsync();
 
         return NoContent();
     }
@@ -315,37 +267,8 @@ public class StudentsController : ControllerBase
     }
 
     // Helper to load full student details with department and enrollments
-    private async Task<StudentDetailsDto?> FindStudentDetailsAsync(int id)
+    private Task<StudentDetailsDto?> FindStudentDetailsAsync(int id)
     {
-        var student = await _context.Students
-            .AsNoTracking()
-            .Where(s => s.Id == id)
-            .Select(s => new StudentDetailsDto
-            {
-                Id = s.Id,
-                StudentNumber = s.StudentNumber,
-                Name = s.Name,
-                TotalCredits = s.TotalCredits,
-                Department = s.Department == null
-                    ? null
-                    : new DepartmentDto
-                    {
-                        Id = s.Department.Id,
-                        Name = s.Department.Name
-                    },
-                Enrollments = s.Enrollments
-                    .Select(e => new StudentEnrollmentDto
-                    {
-                        CourseId = e.CourseId,
-                        CourseCode = e.Course.Code,
-                        CourseTitle = e.Course.Title,
-                        Credits = e.Course.Credits,
-                        Grade = e.Grade
-                    })
-                    .ToList()
-            })
-            .SingleOrDefaultAsync();
-
-        return student;
+        return _students.GetStudentAsync(id);
     }
 }
