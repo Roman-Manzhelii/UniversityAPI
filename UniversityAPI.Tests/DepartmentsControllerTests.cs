@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using UniversityAPI.Controllers;
 using UniversityAPI.Models;
+using UniversityAPI.Services;
 
 namespace UniversityAPI.Tests;
 
@@ -54,8 +55,9 @@ public class DepartmentsControllerTests
     {
         using var context = CreateInMemoryContext();
 
-        // Create controller and inject test context instead of real database
-        var controller = new DepartmentsController(context);
+        // Create controller and inject test context instead of real database using service
+        var service = new DepartmentService(context);
+        var controller = new DepartmentsController(service);
 
         // Action call
         var result = await controller.GetDepartments();
@@ -83,8 +85,8 @@ public class DepartmentsControllerTests
     public async Task GetDepartment_ExistingId_ReturnsDepartment()
     {
         using var context = CreateInMemoryContext();
-
-        var controller = new DepartmentsController(context);
+        var service = new DepartmentService(context);
+        var controller = new DepartmentsController(service);
 
         var result = await controller.GetDepartment(2);
 
@@ -102,8 +104,8 @@ public class DepartmentsControllerTests
     public async Task GetDepartment_UnknownId_ReturnsNotFound()
     {
         using var context = CreateInMemoryContext();
-
-        var controller = new DepartmentsController(context);
+        var service = new DepartmentService(context);
+        var controller = new DepartmentsController(service);
 
         var result = await controller.GetDepartment(999);
 

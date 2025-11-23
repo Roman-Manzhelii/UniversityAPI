@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using UniversityAPI.Controllers;
 using UniversityAPI.Models;
+using UniversityAPI.Services;
 
 namespace UniversityAPI.Tests;
 
@@ -75,8 +76,8 @@ public class CoursesControllerTests
     public async Task GetCourses_ReturnsAllCourses()
     {
         using var context = CreateInMemoryContext();
-
-        var controller = new CoursesController(context);
+        var service = new CourseService(context);
+        var controller = new CoursesController(service);
 
         var result = await controller.GetCourses();
 
@@ -113,7 +114,8 @@ public class CoursesControllerTests
     public async Task GetCourse_ExistingId_ReturnsCourse()
     {
         using var context = CreateInMemoryContext();
-        var controller = new CoursesController(context);
+        var service = new CourseService(context);
+        var controller = new CoursesController(service);
 
         var result = await controller.GetCourse(4);
 
@@ -123,7 +125,6 @@ public class CoursesControllerTests
         var course = okResult!.Value as CourseDetailsDto;
         Assert.IsNotNull(course, "Expected CourseDetailsDto");
 
-        // Check that we got the correct course
         Assert.That(course!.Id, Is.EqualTo(4));
         Assert.That(course.Code, Is.EqualTo("CS-101"));
         Assert.That(course.Title, Is.EqualTo("Intro. to Computer Science"));
@@ -137,12 +138,11 @@ public class CoursesControllerTests
     public async Task GetCourse_UnknownId_ReturnsNotFound()
     {
         using var context = CreateInMemoryContext();
-        var controller = new CoursesController(context);
+        var service = new CourseService(context);
+        var controller = new CoursesController(service);
 
-        // Call action with an id that does not exist
         var result = await controller.GetCourse(999);
 
-        // For unknown id we expect HTTP 404 NotFound
         Assert.IsInstanceOf<NotFoundResult>(result.Result);
     }
 
@@ -150,7 +150,8 @@ public class CoursesControllerTests
     public async Task CreateCourse_ValidData_ReturnsCreatedCourse()
     {
         using var context = CreateInMemoryContext();
-        var controller = new CoursesController(context);
+        var service = new CourseService(context);
+        var controller = new CoursesController(service);
 
         var dto = new CourseCreateDto
         {
@@ -168,7 +169,6 @@ public class CoursesControllerTests
         var course = createdResult!.Value as CourseDetailsDto;
         Assert.IsNotNull(course, "Expected CourseDetailsDto");
 
-        // Verify created course fields
         Assert.That(course!.Id, Is.GreaterThan(0));
         Assert.That(course.Code, Is.EqualTo("CS-999"));
         Assert.That(course.Title, Is.EqualTo("Special Topics"));

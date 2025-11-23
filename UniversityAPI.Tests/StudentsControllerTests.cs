@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using UniversityAPI.Controllers;
 using UniversityAPI.Models;
+using UniversityAPI.Services;
 
 namespace UniversityAPI.Tests;
 
@@ -88,7 +89,9 @@ public class StudentsControllerTests
     // Creates a controller instance and assigns a fake HttpContext with a given user
     private StudentsController CreateControllerWithUser(UniversityContext context, ClaimsPrincipal user)
     {
-        var controller = new StudentsController(context);
+        var service = new StudentService(context);
+        var controller = new StudentsController(service);
+
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
